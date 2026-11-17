@@ -11,7 +11,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script>
 /* ใส่ลิงก์ Web app ของ Apps Script (ลงท้ายด้วย /exec) ตรงนี้ */
-const API_URL = 'https://script.google.com/macros/s/AKfycby_xnctC54HAOzV0-tPBAR_9bxT3taZHLCuI_E4MYaqgoeYVtbBhhNGcYWjOd5h7wvI/exec';
+const API_URL = 'PASTE_YOUR_WEB_APP_URL_HERE';
 /* เป้าหมายความครอบคลุมการตรวจสุขภาพ (%) */
 const GOAL = 95;
 /* ธีม: จำค่าที่ผู้ใช้เลือกไว้ (auto / light / dark) */
@@ -114,6 +114,18 @@ body{font-size:14px;line-height:1.5}
 .sh-foot{color:var(--muted);font-size:12px;border-top:1px solid var(--line);padding-top:12px;display:flex;flex-wrap:wrap;gap:4px 16px;justify-content:space-between}
 .sh-msg{padding:40px 16px;text-align:center;color:var(--muted)}
 .sh-msg[hidden]{display:none}
+.sh-load{display:flex;flex-direction:column;align-items:center;gap:10px;padding:48px 0}
+.sh-load[hidden],.sh-msg-text[hidden]{display:none}
+.sh-load p{margin:0;color:var(--muted);font-size:15px;letter-spacing:.02em}
+.sh-ecg{width:min(320px,80vw);height:auto;overflow:visible}
+.sh-ecg path{fill:none;stroke-linecap:round;stroke-linejoin:round}
+.ecg-base{stroke:var(--line);stroke-width:2}
+.ecg-pulse{stroke:var(--accent);stroke-width:3;stroke-dasharray:28 72;stroke-dashoffset:100;filter:drop-shadow(0 0 4px color-mix(in srgb,var(--accent) 60%,transparent))}
+@media (prefers-reduced-motion:no-preference){.ecg-pulse{animation:sh-ecg 1.6s linear infinite}.sh-load p{animation:sh-blink 1.6s ease-in-out infinite}}
+@media (prefers-reduced-motion:reduce){.ecg-pulse{stroke-dasharray:none;stroke-dashoffset:0}}
+@keyframes sh-ecg{from{stroke-dashoffset:100}to{stroke-dashoffset:0}}
+@keyframes sh-blink{0%,100%{opacity:1}50%{opacity:.55}}
+.sh-msg-text{margin:0;padding:40px 0}
 .sh-loading{position:relative;overflow:hidden;min-height:60px;border-radius:12px;background:var(--panel)}
 .sh-loading::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--line) 60%,transparent),transparent);animation:sh-shim 1.2s infinite}
 @keyframes sh-shim{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
@@ -184,7 +196,13 @@ body{font-size:14px;line-height:1.5}
 </div>
 </div>
 
-<div class="sh-msg" id="msg">กำลังโหลดข้อมูล…</div>
+<div class="sh-msg" id="msg">
+<div class="sh-load" id="loader" role="status" aria-live="polite">
+<svg class="sh-ecg" viewBox="0 0 240 60" aria-hidden="true"><path class="ecg-base" pathLength="100" d="M0 32 H70 L78 32 L84 24 L90 32 H100 L106 32 L113 6 L121 54 L128 32 H142 L150 32 L158 22 L166 32 H240"/><path class="ecg-pulse" pathLength="100" d="M0 32 H70 L78 32 L84 24 L90 32 H100 L106 32 L113 6 L121 54 L128 32 H142 L150 32 L158 22 L166 32 H240"/></svg>
+<p>กำลังโหลดข้อมูล…</p>
+</div>
+<p class="sh-msg-text" id="msg-text" hidden></p>
+</div>
 
 <!-- ===== Scrollyteller ===== -->
 <section class="sh-page" id="story" hidden>
@@ -509,8 +527,8 @@ themeBtn.addEventListener('click',()=>{const n=THEMES[(THEMES.indexOf(curTheme()
 $$('.js-goal').forEach(e=>{e.textContent=GOAL;});
 
 /* ---------- โหลดข้อมูล ---------- */
-function msg(t){const m=$('#msg');m.textContent=t;m.hidden=!t;}
-async function load(){show(location.hash.slice(1)||'story');
+function msg(t){const m=$('#msg'),l=$('#loader'),x=$('#msg-text');if(t===null){m.hidden=false;l.hidden=false;x.hidden=true;return;}l.hidden=true;x.textContent=t||'';x.hidden=!t;m.hidden=!t;}
+async function load(){show(location.hash.slice(1)||'story');msg(null);
   if(!API_URL||/^PASTE/.test(API_URL)){msg('ยังไม่ได้ใส่ลิงก์ Apps Script ในโค้ด (ตัวแปร API_URL ด้านบนของไฟล์)');return;}
   try{const r=await fetch(API_URL+(API_URL.includes('?')?'&':'?')+'t='+Date.now());if(!r.ok)throw new Error('HTTP '+r.status);const d=await r.json();if(d.error)throw new Error(d.error);
     S.D={...d,p1:grid(d.p1),trend:grid(d.trend)};$$('.js-age').forEach(e=>{e.textContent=d.age;});
