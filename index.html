@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>รายงานสภาวะสุขภาพบุคลากร โรงพยาบาลสันทราย</title>
+<meta name="description" content="Sansai Health Dashboard — รายงานสภาวะสุขภาพบุคลากร โรงพยาบาลสันทราย">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script>
+/* ใส่ลิงก์ Web app ของ Apps Script (ลงท้ายด้วย /exec) ตรงนี้ */
+const API_URL = 'PASTE_YOUR_WEB_APP_URL_HERE';
+/* เป้าหมายความครอบคลุมการตรวจสุขภาพ (%) */
+const GOAL = 95;
+/* ธีม: จำค่าที่ผู้ใช้เลือกไว้ (auto / light / dark) */
+try { const t = localStorage.getItem('sh-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+</script>
+<style>
+:root{
+  --accent:#0e9384;
+  --bg:#ffffff;--panel:#f6f8f8;--fg:#17201e;--muted:#5d6a67;--line:#e2e7e6;
+  --ok:#1a9b5c;--warn:#d98a1c;--bad:#d64545;--chart-muted:#cdd4d2;--grid:#edf0f0;
+  --c1:#0e9384;--c2:#3b6fd8;--c3:#e08a1e;--c4:#c2417c;--c5:#7a5bd6;--c6:#5f8f2a;
+  --shadow:0 6px 24px rgba(0,0,0,.12);
+  color-scheme:light;
+}
+:root[data-theme=dark]{
+  --accent:#2bb5a4;
+  --bg:#101413;--panel:#181d1c;--fg:#edf2f1;--muted:#9aa7a4;--line:#2a3230;
+  --ok:#3ccf86;--warn:#f0a742;--bad:#f06a66;--chart-muted:#3a4442;--grid:#222927;
+  --c1:#2bb5a4;--c2:#6d97f0;--c3:#f0a742;--c4:#e06aa0;--c5:#a08af0;--c6:#8fbf4f;
+  --shadow:0 6px 24px rgba(0,0,0,.5);
+  color-scheme:dark;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme=light]){
+    --accent:#2bb5a4;
+    --bg:#101413;--panel:#181d1c;--fg:#edf2f1;--muted:#9aa7a4;--line:#2a3230;
+    --ok:#3ccf86;--warn:#f0a742;--bad:#f06a66;--chart-muted:#3a4442;--grid:#222927;
+    --c1:#2bb5a4;--c2:#6d97f0;--c3:#f0a742;--c4:#e06aa0;--c5:#a08af0;--c6:#8fbf4f;
+    --shadow:0 6px 24px rgba(0,0,0,.5);
+    color-scheme:dark;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg)}
+body,button,select,input{font-family:'Chakra Petch',system-ui,sans-serif}
+body{font-size:14px;line-height:1.5}
+.sh{max-width:1280px;margin:0 auto;padding:0 20px 24px;container-type:inline-size;display:flex;flex-direction:column;gap:20px}
+.sh-top{position:sticky;top:0;z-index:20;background:var(--bg);display:flex;flex-direction:column;gap:10px;padding-top:14px;box-shadow:0 1px 0 var(--line)}
+.sh-head{display:flex;align-items:flex-start;gap:12px}
+.sh-head header{flex:1;min-width:0}
+.sh-title{font-weight:600;font-size:26px;line-height:1.25;margin:0}
+.sh-sub{margin:4px 0 0;color:var(--muted)}
+.sh-sub b{color:var(--fg);font-variant-numeric:tabular-nums}
+.sh-pass{color:var(--ok)}.sh-fail{color:var(--bad)}
+.sh-theme{appearance:none;border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:999px;padding:6px 12px;font-size:12.5px;cursor:pointer;white-space:nowrap}
+.sh-tabs{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+.sh-tabs::-webkit-scrollbar{display:none}
+.sh-tab{appearance:none;border:0;background:none;font-size:14px;color:var(--muted);padding:10px 12px;cursor:pointer;white-space:nowrap;border-bottom:2px solid transparent}
+.sh-tab:hover{color:var(--fg)}
+.sh-tab.on{color:var(--fg);border-bottom-color:var(--accent);font-weight:600}
+.sh-filters{display:flex;flex-wrap:wrap;gap:8px;padding-bottom:10px}
+.sh-filters[hidden],.sh-filters [hidden]{display:none}
+.sh-select{appearance:none;-webkit-appearance:none;max-width:100%;font-size:13.5px;color:var(--fg);background-color:var(--panel);border:1px solid var(--line);border-radius:10px;padding:7px 32px 7px 12px;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 16px) 52%,calc(100% - 11px) 52%;background-size:5px 5px;background-repeat:no-repeat;cursor:pointer}
+.sh-page{display:flex;flex-direction:column;gap:20px}
+.sh-page[hidden]{display:none}
+.sh-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:16px}
+.sh-grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:16px}
+.sh-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+.sh-card,.sh-kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;min-width:0}
+.sh-kpi-l{color:var(--muted);font-size:12px}
+.sh-kpi-v{font-size:28px;font-weight:500;line-height:1.25;font-variant-numeric:tabular-nums}
+.sh-kpi-n{font-size:12px;color:var(--muted)}
+.sh-kpi-n.ok{color:var(--ok)}.sh-kpi-n.bad{color:var(--bad)}
+.sh-h2{font-size:18px;font-weight:600;margin:0}
+.sh-h3{font-size:14px;font-weight:600;margin:0 0 8px}
+.sh-h3[hidden]{display:none}
+.sh-muted{color:var(--muted);font-size:12px;margin:0}
+.sh-sec{display:flex;flex-direction:column;gap:10px}
+.sh-chart{min-height:250px}
+.sh-plot{position:relative}
+.sh-plot svg{display:block;overflow:visible;touch-action:pan-y}
+.sh-plot text{fill:var(--muted);font-size:11px;font-family:'Chakra Petch',sans-serif}
+.sh-plot text.sh-val{fill:var(--fg);font-variant-numeric:tabular-nums}
+.sh-legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;margin-bottom:6px;color:var(--muted)}
+.sh-lg{display:inline-flex;align-items:center;gap:5px}
+.sh-sw{width:9px;height:9px;border-radius:3px;flex:none;display:inline-block}
+.sh-tip{position:absolute;z-index:3;pointer-events:none;background:var(--bg);border:1px solid var(--line);box-shadow:var(--shadow);border-radius:8px;padding:8px 10px;font-size:12px;display:flex;flex-direction:column;gap:3px;max-width:270px}
+.sh-tip[hidden]{display:none}
+.sh-tip-r{display:flex;align-items:center;gap:6px}
+.sh-tip-r b{margin-left:auto;padding-left:10px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.sh-big b{font-size:26px;font-weight:500;font-variant-numeric:tabular-nums}
+.sh-bar{display:flex;height:12px;border-radius:6px;overflow:hidden;gap:2px;margin:10px 0}
+.sh-bar i{min-width:2px}
+.sh-cats{display:flex;flex-direction:column;gap:4px;font-size:12.5px}
+.sh-cat{display:flex;align-items:baseline;gap:6px}
+.sh-cat-l{flex:1;min-width:0}
+.sh-cat b{font-variant-numeric:tabular-nums}
+.sh-row{display:grid;grid-template-columns:minmax(90px,34%) 1fr auto;gap:8px;align-items:center;font-size:13px;padding:4px 0}
+.sh-track{height:10px;border-radius:5px;background:var(--grid);overflow:hidden;display:flex;gap:1px}
+.sh-track i{display:block;height:100%}
+.sh-row-v{font-variant-numeric:tabular-nums;white-space:nowrap;font-size:12px}
+.sh-foot{color:var(--muted);font-size:12px;border-top:1px solid var(--line);padding-top:12px;display:flex;flex-wrap:wrap;gap:4px 16px;justify-content:space-between}
+.sh-msg{padding:40px 16px;text-align:center;color:var(--muted)}
+.sh-msg[hidden]{display:none}
+.sh-loading{position:relative;overflow:hidden;min-height:60px;border-radius:12px;background:var(--panel)}
+.sh-loading::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--line) 60%,transparent),transparent);animation:sh-shim 1.2s infinite}
+@keyframes sh-shim{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
+/* Scrollyteller */
+.st{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
+.st-stage{position:sticky;top:var(--sh-head,0px);z-index:2;background:var(--bg);padding:8px 0;display:flex;flex-direction:column;gap:8px}
+.st-prog{display:flex;gap:4px}
+.st-prog span{flex:1;font-size:11px;color:var(--muted);border-top:3px solid var(--line);padding-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.st-prog span.on{color:var(--fg);border-top-color:var(--accent);font-weight:600}
+.st-prog span.done{border-top-color:color-mix(in srgb,var(--accent) 45%,transparent)}
+.st-chart{min-height:290px}
+.st-chart .sh-kpis{min-height:0}
+.st-sub{margin-bottom:12px}
+.st-steps{display:flex;flex-direction:column}
+.st-chap{font-size:15px;font-weight:600;color:var(--accent);margin:24px 0 0}
+.st-step{min-height:62vh;display:flex;flex-direction:column;justify-content:center;gap:8px;opacity:.4}
+.st-step.on{opacity:1}
+.st-step p{margin:0;font-size:16px;line-height:1.7}
+.st-step b{font-variant-numeric:tabular-nums}
+.st-kicker{color:var(--muted);font-size:12px;letter-spacing:.04em}
+.st-h{font-size:22px;font-weight:600;line-height:1.3;margin:0}
+.st-more{align-self:flex-start;appearance:none;border:1px solid var(--line);background:var(--panel);color:var(--fg);font-size:13px;border-radius:999px;padding:6px 14px;cursor:pointer;margin-top:4px}
+.st-more:hover{border-color:var(--accent)}
+.st-end{min-height:30vh;display:flex;flex-direction:column;justify-content:center;gap:8px}
+@media (prefers-reduced-motion:no-preference){.st-step{transition:opacity .3s ease-out}}
+@container (min-width:720px){
+  .st{grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:32px}
+  .st-stage{order:2;height:calc(100vh - var(--sh-head,0px));height:calc(100dvh - var(--sh-head,0px));justify-content:center;padding:12px 0}
+  .st-step{min-height:78vh}
+}
+@container (max-width:600px){
+  .sh-title{font-size:19px}.sh-sub{font-size:12.5px;margin-top:2px}
+  .sh-tab{padding:8px 10px;font-size:13.5px}
+  .st-chart{min-height:220px}.st-step{min-height:55vh}.st-step p{font-size:15px}.st-h{font-size:19px}
+  .sh-kpi-v{font-size:22px}.sh-kpis{grid-template-columns:repeat(auto-fit,minmax(120px,1fr))}
+  .sh-row{grid-template-columns:minmax(80px,40%) 1fr auto;font-size:12px}
+  .st-prog span{font-size:10px}
+}
+@media (max-width:600px){.sh{padding:0 12px 20px}}
+</style>
+</head>
+<body>
+<div class="sh" id="app">
+<div class="sh-top" id="top">
+<div class="sh-head">
+<header>
+<h1 class="sh-title">รายงานสภาวะสุขภาพบุคลากร โรงพยาบาลสันทราย</h1>
+<p class="sh-sub">ปีงบประมาณ <b data-f="kpi.year">—</b> ตรวจสุขภาพครอบคลุม <b data-f="kpi.cov">—</b>% <span class="sh-pass" hidden>ผ่านเป้าหมาย</span><span class="sh-fail" hidden>ต่ำกว่าเป้าหมาย</span> (เป้าหมาย <b class="js-goal">—</b>%)</p>
+</header>
+<button type="button" class="sh-theme" id="theme" aria-label="เปลี่ยนธีม">ธีม: อัตโนมัติ</button>
+</div>
+<nav class="sh-tabs" role="tablist">
+<button type="button" class="sh-tab" role="tab" data-tab="story">Scrollyteller</button>
+<button type="button" class="sh-tab" role="tab" data-tab="overview">ภาพรวม</button>
+<button type="button" class="sh-tab" role="tab" data-tab="trend">แนวโน้มรายหน่วยงาน</button>
+<button type="button" class="sh-tab" role="tab" data-tab="results">ผลตรวจปีปัจจุบัน</button>
+<button type="button" class="sh-tab" role="tab" data-tab="analysis">วิเคราะห์เจาะลึก</button>
+<button type="button" class="sh-tab" role="tab" data-tab="risk">ตรวจตามความเสี่ยง</button>
+<button type="button" class="sh-tab" role="tab" data-tab="hazards">สิ่งคุกคามจากงาน</button>
+</nav>
+<div class="sh-filters" id="filters">
+<select class="sh-select f-org" id="f-mission" aria-label="กลุ่มภารกิจ"></select>
+<select class="sh-select f-org" id="f-unit" aria-label="หน่วยงานย่อย"></select>
+<select class="sh-select f-span" id="f-span" aria-label="ช่วงปีที่แสดง"><option value="5">5 ปีล่าสุด</option><option value="10">10 ปีล่าสุด</option><option value="0">ทุกปีที่มีข้อมูล</option></select>
+</div>
+</div>
+
+<div class="sh-msg" id="msg">กำลังโหลดข้อมูล…</div>
+
+<!-- ===== Scrollyteller ===== -->
+<section class="sh-page" id="story" hidden>
+<div class="st">
+<div class="st-stage">
+<div class="st-prog"><span data-ch="1" class="on">1 ภาพรวม 5 ปี</span><span data-ch="2">2 ผลตรวจปีนี้</span><span data-ch="3">3 เจาะลึก</span><span data-ch="4">4 ความเสี่ยงจากงาน</span></div>
+<div class="sh-card">
+<h3 class="sh-h3 st-cap" data-step="coverage">ร้อยละความครอบคลุมการตรวจสุขภาพ</h3>
+<h3 class="sh-h3 st-cap" data-step="groups" hidden>ร้อยละกลุ่มภาวะสุขภาพบุคลากร</h3>
+<h3 class="sh-h3 st-cap" data-step="top5" hidden>ร้อยละภาวะสุขภาพเสี่ยง 5 อันดับ</h3>
+<h3 class="sh-h3 st-cap" data-step="control" hidden>ร้อยละการควบคุมปัญหาสุขภาพ กลุ่มเสี่ยงและกลุ่มป่วย</h3>
+<h3 class="sh-h3 st-cap" data-step="behavior" hidden>ร้อยละพฤติกรรมสุขภาพบุคลากร</h3>
+<h3 class="sh-h3 st-cap" data-step="who" hidden>ผู้เข้ารับการตรวจปีปัจจุบัน</h3>
+<h3 class="sh-h3 st-cap" data-step="tests" hidden>ร้อยละผลตรวจที่ไม่ปกติ แต่ละรายการ</h3>
+<h3 class="sh-h3 st-cap" data-step="body" hidden>ดัชนีมวลกาย รอบเอว และความดันโลหิต</h3>
+<h3 class="sh-h3 st-cap" data-step="focus" hidden>โรคเด่นของปีนี้ พบในใครมากที่สุด</h3>
+<h3 class="sh-h3 st-cap" data-step="mission" hidden>ผู้ที่พบโรคเด่น แยกตามกลุ่มภารกิจ</h3>
+<h3 class="sh-h3 st-cap" data-step="risk" hidden>ร้อยละผลผิดปกติ การตรวจตามความเสี่ยง</h3>
+<h3 class="sh-h3 st-cap" data-step="haz" hidden>สิ่งคุกคามที่สัมผัสมากที่สุด 10 อันดับ</h3>
+<div class="st-chart" id="stage"></div>
+</div>
+</div>
+<div class="st-steps">
+<h2 class="st-chap">บทที่ 1 · ภาพรวม 5 ปี</h2>
+<section class="st-step on" data-step="coverage" data-ch="1">
+<span class="st-kicker">1 / 12 · ความครอบคลุม</span>
+<h2 class="st-h">เกือบทุกคนได้รับการตรวจสุขภาพหรือไม่</h2>
+<p>ปี <b data-f="st.coverage.year">—</b> บุคลากรเข้ารับการตรวจสุขภาพ <b data-f="st.coverage.topValue">—</b>% <span data-if="st.coverage.gap" data-sign="pos" hidden>สูงกว่าเป้าหมาย</span><span data-if="st.coverage.gap" data-sign="neg" hidden>ต่ำกว่าเป้าหมาย</span> <b class="js-goal">—</b>% อยู่ <b data-f="st.coverage.gapSize">—</b> จุด</p>
+<p>ใน <b data-f="st.coverage.years">—</b> ปีที่แสดง มี <b data-f="st.coverage.passYears">—</b> ปีที่ถึงเป้าหมาย</p>
+<button type="button" class="st-more" data-goto="overview">ดูรายละเอียดในแท็บภาพรวม →</button>
+</section>
+<section class="st-step" data-step="groups" data-ch="1">
+<span class="st-kicker">2 / 12 · กลุ่มภาวะสุขภาพ</span>
+<h2 class="st-h">ตรวจแล้ว ส่วนใหญ่อยู่กลุ่มไหน</h2>
+<p>ปี <b data-f="st.groups.year">—</b> กลุ่มที่มีสัดส่วนมากที่สุดคือ <b data-f="st.groups.top">—</b> ที่ <b data-f="st.groups.topValue">—</b>% <span data-if="st.groups.topChange" data-sign="pos" hidden>เพิ่มขึ้น</span><span data-if="st.groups.topChange" data-sign="neg" hidden>ลดลง</span> <b data-f="st.groups.topMove">—</b> จุดจากปี <b data-f="st.groups.first">—</b></p>
+<p>กลุ่มที่น้อยที่สุดคือ <b data-f="st.groups.low">—</b> ที่ <b data-f="st.groups.lowValue">—</b>%</p>
+<button type="button" class="st-more" data-goto="trend">ดูแยกรายหน่วยงาน →</button>
+</section>
+<section class="st-step" data-step="top5" data-ch="1">
+<span class="st-kicker">3 / 12 · ภาวะเสี่ยง</span>
+<h2 class="st-h">ปัญหาสุขภาพที่พบมากที่สุด</h2>
+<p>ปี <b data-f="st.top5.year">—</b> อันดับหนึ่งคือ <b data-f="st.top5.top">—</b> ที่ <b data-f="st.top5.topValue">—</b>% ของบุคลากร</p>
+<p>เทียบกับปี <b data-f="st.top5.first">—</b> ที่อันดับหนึ่งคือ <b data-f="st.top5.firstTop">—</b> ที่ <b data-f="st.top5.firstTopValue">—</b>%</p>
+<button type="button" class="st-more" data-goto="trend">ดูแยกรายหน่วยงาน →</button>
+</section>
+<section class="st-step" data-step="control" data-ch="1">
+<span class="st-kicker">4 / 12 · การควบคุม</span>
+<h2 class="st-h">กลุ่มเสี่ยงและกลุ่มป่วยควบคุมได้แค่ไหน</h2>
+<p>ปี <b data-f="st.control.year">—</b> ควบคุมได้ดีที่สุดคือ <b data-f="st.control.top">—</b> ที่ <b data-f="st.control.topValue">—</b>%</p>
+<p>ส่วนที่ควบคุมได้น้อยที่สุดคือ <b data-f="st.control.low">—</b> ที่ <b data-f="st.control.lowValue">—</b>%</p>
+<button type="button" class="st-more" data-goto="overview">ดูรายละเอียดในแท็บภาพรวม →</button>
+</section>
+<section class="st-step" data-step="behavior" data-ch="1">
+<span class="st-kicker">5 / 12 · พฤติกรรม</span>
+<h2 class="st-h">พฤติกรรมที่อยู่เบื้องหลัง</h2>
+<p>พฤติกรรมเสี่ยงที่พบมากที่สุดในปี <b data-f="st.behavior.year">—</b> คือ <b data-f="st.behavior.top">—</b> ที่ <b data-f="st.behavior.topValue">—</b>% <span data-if="st.behavior.topChange" data-sign="pos" hidden>เพิ่มขึ้น</span><span data-if="st.behavior.topChange" data-sign="neg" hidden>ลดลง</span> <b data-f="st.behavior.topMove">—</b> จุดจากปี <b data-f="st.behavior.first">—</b></p>
+<p>ที่พบน้อยที่สุดคือ <b data-f="st.behavior.low">—</b> ที่ <b data-f="st.behavior.lowValue">—</b>%</p>
+<button type="button" class="st-more" data-goto="trend">ดูแยกรายหน่วยงาน →</button>
+</section>
+<h2 class="st-chap">บทที่ 2 · ผลตรวจปีนี้</h2>
+<section class="st-step" data-step="who" data-ch="2">
+<span class="st-kicker">6 / 12 · ใครมาตรวจ</span>
+<h2 class="st-h">ภาพของคนที่มาตรวจปีนี้</h2>
+<p>ปีนี้มีบุคลากรเข้ารับการตรวจ <b data-f="who.n">—</b> คน เป็นเพศหญิง <b data-f="who.femalePct">—</b>% และเพศชาย <b data-f="who.malePct">—</b>%</p>
+<p>อายุน้อยกว่า <b class="js-age">—</b> ปี <b data-f="who.youngPct">—</b>% ของผู้ที่ระบุอายุ</p>
+<button type="button" class="st-more" data-goto="results">ดูผลตรวจปีปัจจุบัน →</button>
+</section>
+<section class="st-step" data-step="tests" data-ch="2">
+<span class="st-kicker">7 / 12 · รายการตรวจ</span>
+<h2 class="st-h">รายการตรวจไหนควรจับตา</h2>
+<p>รายการที่พบผลไม่ปกติมากที่สุดคือ <b data-f="tests.0.test">—</b> ที่ <b data-f="tests.0.pct">—</b>% ของผู้ที่มีผลตรวจ <b data-f="tests.0.total">—</b> คน</p>
+<p>รองลงมาคือ <b data-f="tests.1.test">—</b> ที่ <b data-f="tests.1.pct">—</b>%</p>
+<button type="button" class="st-more" data-goto="results">ดูผลตรวจทุกรายการ →</button>
+</section>
+<section class="st-step" data-step="body" data-ch="2">
+<span class="st-kicker">8 / 12 · ร่างกายทั่วไป</span>
+<h2 class="st-h">น้ำหนัก รอบเอว และความดัน</h2>
+<p><b data-f="body.bmiAb">—</b>% มีดัชนีมวลกายนอกเกณฑ์ปกติ โดย <b data-f="body.obese">—</b>% อยู่ในเกณฑ์อ้วนหรืออ้วนมาก</p>
+<p>รอบเอวเกินเกณฑ์ <b data-f="body.waist">—</b>% และความดันโลหิตไม่อยู่ในเกณฑ์ปกติ <b data-f="body.bp">—</b>%</p>
+<button type="button" class="st-more" data-goto="results">ดูรายละเอียดร่างกายทั่วไป →</button>
+</section>
+<h2 class="st-chap">บทที่ 3 · เจาะลึก</h2>
+<section class="st-step" data-step="focus" data-ch="3">
+<span class="st-kicker">9 / 12 · โรคเด่นของปีนี้</span>
+<h2 class="st-h">ปัญหาที่พบมากที่สุด เกิดกับใคร</h2>
+<p>ปีนี้พบ <b data-f="focus.cond">—</b> มากที่สุด <b data-f="focus.n">—</b> คน คิดเป็น <b data-f="focus.pct">—</b>% ของผู้ที่มีผลตรวจ</p>
+<p>ในกลุ่มนี้เป็นเพศ<b data-f="focus.sex">—</b> <b data-f="focus.sexPct">—</b>% และ<b data-f="focus.age">—</b> <b data-f="focus.agePct">—</b>%</p>
+<button type="button" class="st-more" data-goto="analysis">วิเคราะห์เจาะลึกโรคนี้ →</button>
+</section>
+<section class="st-step" data-step="mission" data-ch="3">
+<span class="st-kicker">10 / 12 · แยกตามภารกิจ</span>
+<h2 class="st-h">ภารกิจไหนพบมากที่สุด</h2>
+<p>ผู้ที่พบ <b data-f="focus.cond">—</b> อยู่ใน<b data-f="focus.mission">—</b> มากที่สุด <b data-f="focus.missionN">—</b> คน หรือ <b data-f="focus.missionPct">—</b>% ของผู้ที่พบทั้งหมด</p>
+<p class="sh-muted">ภารกิจที่มีบุคลากรมาก มักพบจำนวนคนมากตามไปด้วย</p>
+<button type="button" class="st-more" data-goto="analysis">ดูแยกตามภารกิจและพฤติกรรม →</button>
+</section>
+<h2 class="st-chap">บทที่ 4 · ความเสี่ยงจากงาน</h2>
+<section class="st-step" data-step="risk" data-ch="4">
+<span class="st-kicker">11 / 12 · ตรวจตามความเสี่ยง</span>
+<h2 class="st-h">การได้ยิน การมองเห็น และปอด</h2>
+<p>ในการตรวจตามความเสี่ยงของงาน รายการที่พบผลผิดปกติมากที่สุดคือ <b data-f="risk.0.test">—</b> ที่ <b data-f="risk.0.pct">—</b>% ของผู้ตรวจ <b data-f="risk.0.total">—</b> คน</p>
+<button type="button" class="st-more" data-goto="risk">ดูผลตรวจตามความเสี่ยง →</button>
+</section>
+<section class="st-step" data-step="haz" data-ch="4">
+<span class="st-kicker">12 / 12 · สิ่งคุกคาม</span>
+<h2 class="st-h">สิ่งที่บุคลากรเจอในที่ทำงาน</h2>
+<p>สิ่งคุกคามที่บุคลากรระบุว่าสัมผัสมากที่สุดคือ <b data-f="haz.0.hazard">—</b> <b data-f="haz.0.pct">—</b>% รองลงมาคือ <b data-f="haz.1.hazard">—</b> <b data-f="haz.1.pct">—</b>% และ <b data-f="haz.2.hazard">—</b> <b data-f="haz.2.pct">—</b>%</p>
+<button type="button" class="st-more" data-goto="hazards">ดูสิ่งคุกคามทุกด้าน →</button>
+</section>
+<div class="st-end"><p class="sh-muted">บทที่ 1 มาจากตารางสรุปรายปี บทที่ 2 ถึง 4 มาจากผลตรวจปีปัจจุบัน นับทั้งโรงพยาบาล ดูแยกหน่วยงานได้ในแท็บด้านบน</p></div>
+</div>
+</div>
+</section>
+
+<!-- ===== ภาพรวม ===== -->
+<section class="sh-page" id="overview" hidden>
+<div class="sh-kpis" id="ov-kpis"></div>
+<div class="sh-grid">
+<div class="sh-card"><h3 class="sh-h3">ร้อยละความครอบคลุมการตรวจสุขภาพ</h3><div class="sh-chart" data-chart="ov.coverage"></div></div>
+<div class="sh-card"><h3 class="sh-h3">ร้อยละกลุ่มภาวะสุขภาพบุคลากร</h3><div class="sh-chart" data-chart="ov.groups"></div></div>
+<div class="sh-card"><h3 class="sh-h3">ร้อยละภาวะสุขภาพเสี่ยง 5 อันดับ</h3><div class="sh-chart" data-chart="ov.top5"></div></div>
+<div class="sh-card"><h3 class="sh-h3">ร้อยละการควบคุมปัญหาสุขภาพ กลุ่มเสี่ยงและกลุ่มป่วย</h3><div class="sh-chart" data-chart="ov.control"></div></div>
+<div class="sh-card"><h3 class="sh-h3">ร้อยละพฤติกรรมสุขภาพบุคลากร</h3><div class="sh-chart" data-chart="ov.behavior"></div></div>
+</div>
+<p class="sh-muted">ตัวเลขหน้านี้มาจากตารางสรุปในชีต Page 1 ภาพรวม เพิ่มปีใหม่ในชีตแล้วกราฟจะขยายตามเอง</p>
+</section>
+
+<!-- ===== แนวโน้มรายหน่วยงาน ===== -->
+<section class="sh-page" id="trend" hidden>
+<p class="sh-muted">ร้อยละคิดจากผู้เข้ารับการตรวจทั้งโรงพยาบาลในปีนั้น เมื่อเลือกกลุ่มภารกิจหรือหน่วยงาน ตัวเลขคือส่วนที่หน่วยงานนั้นมีต่อภาพรวม ชี้หรือแตะที่กราฟเพื่อดูจำนวนคน</p>
+<div class="sh-grid">
+<div class="sh-card"><h3 class="sh-h3">ภาวะสุขภาพเสี่ยง 5 อันดับ</h3><div class="sh-chart" data-chart="tr.top5"></div></div>
+<div class="sh-card"><h3 class="sh-h3">กลุ่มภาวะสุขภาพบุคลากร</h3><div class="sh-chart" data-chart="tr.groups"></div></div>
+<div class="sh-card"><h3 class="sh-h3">พฤติกรรมสุขภาพบุคลากร</h3><div class="sh-chart" data-chart="tr.behavior"></div></div>
+<div class="sh-card"><h3 class="sh-h3">การควบคุมปัญหาสุขภาพ กลุ่มเสี่ยงและกลุ่มป่วย</h3><div class="sh-chart" data-chart="tr.control"></div></div>
+</div>
+</section>
+
+<!-- ===== ผลตรวจปีปัจจุบัน ===== -->
+<section class="sh-page" id="results" hidden>
+<p class="sh-muted">แสดงเฉพาะตัวเลขรวม ไม่มีชื่อหรือผลรายบุคคล</p>
+<div class="sh-kpis" id="cur-kpis"></div>
+<div class="sh-sec"><h2 class="sh-h2">ร่างกายทั่วไป</h2><div class="sh-grid3" data-tests="body"></div></div>
+<div class="sh-sec"><h2 class="sh-h2">ความสมบูรณ์ของเม็ดเลือด (CBC)</h2><div class="sh-grid3" data-tests="cbc"></div></div>
+<div class="sh-sec"><h2 class="sh-h2">น้ำตาล ไขมัน และตับ</h2><div class="sh-grid3" data-tests="chem"></div></div>
+<div class="sh-sec"><h2 class="sh-h2">เอกซเรย์ อุจจาระ และปัสสาวะ</h2><div class="sh-grid3" data-tests="other"></div></div>
+</section>
+
+<!-- ===== วิเคราะห์เจาะลึก ===== -->
+<section class="sh-page" id="analysis" hidden>
+<div class="sh-filters"><select class="sh-select" id="f-cond" aria-label="รายการตรวจที่ต้องการวิเคราะห์"><option value="ผลไขมันในเลือด">ไขมันในเลือดสูง</option><option value="ผล HB HCT">ภาวะโลหิตจาง</option><option value="สรุปตับ">การทำงานของตับผิดปกติ</option><option value="ผลน้ำตาลในเลือด">น้ำตาลในเลือดสูง</option><option value="สรุปความดัน">ความดันโลหิตสูง</option><option value="แปล BMI">ดัชนีมวลกายไม่ปกติ</option><option value="ประเมินรอบเอว">รอบเอวเกินเกณฑ์</option><option value="ผลปัสสาวะ">ปัสสาวะผิดปกติ</option><option value="CXR">เอกซเรย์ทรวงอกผิดปกติ</option></select></div>
+<div class="sh-kpis" id="dd-kpis"></div>
+<div class="sh-card"><h3 class="sh-h3">จำนวนผู้ที่พบผลผิดปกติ แยกตามกลุ่มภารกิจ</h3><div id="dd-mission"></div></div>
+<div class="sh-sec"><h2 class="sh-h2">พฤติกรรมและปัจจัยในกลุ่มที่พบผลผิดปกติ</h2><div class="sh-grid3" id="dd-factors"></div></div>
+<div class="sh-sec"><h2 class="sh-h2">โรคประจำตัวที่คัดไว้วิเคราะห์</h2><p class="sh-muted">นับจากบุคลากรทั้งหมดตามตัวกรอง (คอลัมน์สีเหลืองท้ายชีต Page 2) ไม่ขึ้นกับรายการตรวจที่เลือกด้านบน</p><div class="sh-grid3" id="dd-history"></div></div>
+</section>
+
+<!-- ===== ตรวจตามความเสี่ยง ===== -->
+<section class="sh-page" id="risk" hidden>
+<p class="sh-muted">ผลตรวจสุขภาพตามความเสี่ยงของงาน นับเฉพาะผู้ที่มีผลตรวจรายการนั้น</p>
+<div class="sh-grid3" data-tests="risk"></div>
+</section>
+
+<!-- ===== สิ่งคุกคาม ===== -->
+<section class="sh-page" id="hazards" hidden>
+<p class="sh-muted">ร้อยละของผู้ตอบแบบสำรวจที่ระบุว่าสัมผัสสิ่งคุกคามนั้น เรียงจากมากไปน้อย</p>
+<div class="sh-grid">
+<div class="sh-card"><h3 class="sh-h3">ด้านกายภาพ (Physical)</h3><div data-haz="physical" data-ci="0"></div></div>
+<div class="sh-card"><h3 class="sh-h3">ด้านการยศาสตร์ (Ergonomic)</h3><div data-haz="ergo" data-ci="1"></div></div>
+<div class="sh-card"><h3 class="sh-h3">ด้านเคมี (Chemical)</h3><div data-haz="chem" data-ci="2"></div></div>
+<div class="sh-card"><h3 class="sh-h3">ด้านชีวภาพ (Biological)</h3><div data-haz="bio" data-ci="3"></div></div>
+<div class="sh-card"><h3 class="sh-h3">ด้านจิตวิทยาสังคม (Psychosocial)</h3><div data-haz="psych" data-ci="4"></div></div>
+<div class="sh-card"><h3 class="sh-h3">ด้านความปลอดภัยในงาน</h3><div data-haz="safety" data-ci="5"></div></div>
+</div>
+</section>
+
+<footer class="sh-foot"><span>กลุ่มงานอาชีวเวชกรรม ภารกิจด้านบริการปฐมภูมิ โรงพยาบาลสันทราย · โทรศัพท์ 053-921199 ต่อ 167</span><span id="updated"></span></footer>
+</div>
+
+<script>
+(function(){
+'use strict';
+/* ---------- ค่าคงที่ ---------- */
+const C=['var(--c1)','var(--c2)','var(--c3)','var(--c4)','var(--c5)','var(--c6)'];
+const T=[{g:'body',col:'แปล BMI',label:'ดัชนีมวลกาย (BMI)'},{g:'body',col:'ประเมินรอบเอว',label:'รอบเอว'},{g:'body',col:'สรุปความดัน',label:'ความดันโลหิต'},{g:'cbc',col:'ผลCBC',label:'ความสมบูรณ์ของเม็ดเลือดโดยรวม (CBC)'},{g:'cbc',col:'ผล HB HCT',label:'ความเข้มข้นของเลือด (Hb, Hct)'},{g:'cbc',col:'ผลwbc',label:'เม็ดเลือดขาว (WBC)'},{g:'cbc',col:'ผลplt',label:'เกล็ดเลือด (Platelet)'},{g:'chem',col:'ผลน้ำตาลในเลือด',label:'น้ำตาลในเลือด (FBS)'},{g:'chem',col:'ผลไขมันในเลือด',label:'ไขมันในเลือด'},{g:'chem',col:'สรุปตับ',label:'การทำงานของตับ'},{g:'other',col:'CXR',label:'เอกซเรย์ทรวงอก (CXR)'},{g:'other',col:'Stool exam',label:'ตรวจอุจจาระ (Stool exam)'},{g:'other',col:'ผลปัสสาวะ',label:'ตรวจปัสสาวะ (Urinalysis)'},{g:'risk',col:'ผลสมรรถภาพการได้ยิน (หูขวา)',label:'สมรรถภาพการได้ยิน หูขวา'},{g:'risk',col:'ผลสมรรถภาพการได้ยิน (หูซ้าย)',label:'สมรรถภาพการได้ยิน หูซ้าย'},{g:'risk',col:'ผลสมรรถภาพการมองเห็น',label:'สมรรถภาพการมองเห็น'},{g:'risk',col:'ผลสมรรถภาพปอด',label:'สมรรถภาพปอด'}];
+const HZ={physical:['แสง','แสงจ้า','แสงไม่เพียงพอ','อากาศร้อน','เสียงดัง','สั่นสะเทือน','ในที่สูง'],ergo:['ยืนติดต่อกันนานๆ','นั่งนานๆ','ก้มๆเงยๆ','ยกของหนัก','ยกแขนอยู่เหนือระดับไหล่','ข้อมือซ้ำๆ'],chem:['สารเคมี','ฝุ่นละออง'],bio:['เชื้อโรค'],psych:['รวมเครียด'],safety:['สภาพงานที่ไม่ปลอดภัย','สิ่งมีคม','เครื่องจักร']};
+const HZL={'แสง':'แสงสว่าง','รวมเครียด':'ความเครียดผิดปกติ','ในที่สูง':'ทำงานในที่สูง','สั่นสะเทือน':'ความสั่นสะเทือน'};
+const FACT=['อาหารมัน','อาหารหวาน','อาหารเค็ม','การออกกำลังกาย','แปล BMI','สูบบุหรี่','สุรา'];
+const FOCUS=[{col:'ผลไขมันในเลือด',name:'ไขมันในเลือดสูง'},{col:'ผล HB HCT',name:'ภาวะโลหิตจาง'},{col:'สรุปตับ',name:'การทำงานของตับผิดปกติ'},{col:'ผลน้ำตาลในเลือด',name:'น้ำตาลในเลือดสูง'},{col:'สรุปความดัน',name:'ความดันโลหิตสูง'}];
+const COUNT='จำนวนคน',AGECOL='กลุ่มอายุ';
+const GAP=/^_[0-9]+$/,YEAR=/^[0-9]{4}$/;
+
+/* ---------- ตัวช่วย ---------- */
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const h=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e;};
+const num=v=>{const n=parseFloat(String(v==null?'':v).replace(/[%, ]/g,''));return Number.isFinite(n)?n:null;};
+const r1=x=>Math.round(x*10)/10;
+const fmt=x=>r1(x).toLocaleString('en-US',{maximumFractionDigits:1});
+const blank=v=>v==null||v===''||String(v).startsWith('#');
+const isNormal=v=>/ปกติ|เหมาะสม/.test(v)&&!/ผิดปกติ|เกณฑ์ปกติ|พบ|ไม่เหมาะสม|ค่อนข้าง/.test(v);
+const exposed=v=>!['ไม่ใช่','ไม่มี','ปกติ'].includes(v);
+const pct=(n,d)=>d?r1(n/d*100):0;
+const mix=(j,k)=>'color-mix(in srgb, var(--bad) '+(k>1?Math.round(j/(k-1)*100):0)+'%, var(--warn))';
+const th=(a,b)=>a.localeCompare(b,'th');
+const blocks=keys=>{const out=[[]];keys.forEach(k=>GAP.test(k)?out.push([]):out[out.length-1].push(k));return out.filter(b=>b.length);};
+const lastYears=(rows,span)=>{if(!span)return rows;const ys=[...new Set(rows.map(r=>r.year))].sort().slice(-span);return rows.filter(r=>ys.includes(r.year));};
+const reduceMotion=()=>!(window.matchMedia&&matchMedia('(prefers-reduced-motion: no-preference)').matches);
+const grid=v=>{if(!Array.isArray(v)||!v.length)return[];const width=v.reduce((m,r)=>Math.max(m,r.length),0);const seen={};const cols=Array.from({length:width},(_,i)=>{const k=String(v[0][i]==null?'':v[0][i]).trim()||'_'+i;seen[k]=(seen[k]||0)+1;return seen[k]>1?k+' ('+seen[k]+')':k;});return v.slice(1).map(r=>{const o={};cols.forEach((c,i)=>{o[c]=r[i]==null?'':String(r[i]).trim();});return o;});};
+
+/* ---------- สถานะ ---------- */
+const S={D:null,p:{mission:'',unit:'',span:5,cond:'ผลไขมันในเลือด'},tab:'story',step:'coverage',anim:null};
+
+/* ---------- คำนวณจากข้อมูล ---------- */
+function ovSeries(){const p1=S.D.p1;if(!p1.length)return[];const span=S.p.span;const keys=Object.keys(p1[0]);const yearKeys=keys.filter(k=>YEAR.test(k));const out=[];blocks(keys.filter(k=>!YEAR.test(k))).forEach(b=>{const head=b[0],rest=b.slice(1);const chart=/cover/i.test(head)?'coverage':/health/i.test(head)?'groups':/disease/i.test(head)?'top5':/behav/i.test(head)?'behavior':'control';const wide=!rest.length||rest.every(k=>/[0-9]{4}$/.test(k));const cols=rest.length?rest:yearKeys;p1.forEach(r=>{if(blank(r[head]))return;cols.forEach(c=>{const v=num(r[c]);if(v==null)return;out.push(wide?{chart,year:c.slice(-4),series:r[head].replace(/^[0-9]+[.] */,''),value:v}:{chart,year:r[head],series:c.replace(/_/g,' '),value:v});});});});return d3.groups(out,d=>d.chart).flatMap(g=>lastYears(g[1],span));}
+function ovKpi(series){return['coverage','groups'].flatMap(ch=>{const rows=series.filter(r=>r.chart===ch);const ys=[...new Set(rows.map(r=>r.year))].sort();const y=ys[ys.length-1],p=ys[ys.length-2];return rows.filter(r=>r.year===y).map(r=>{const pv=rows.find(q=>q.year===p&&q.series===r.series);return{key:r.series,chart:ch,year:y,value:r1(r.value),prevYear:p||'',change:pv?r1(r.value-pv.value):null};});});}
+function trSeries(){const trend=S.D.trend,p=S.p;if(!trend.length)return[];const bl=blocks(Object.keys(trend[0]));const U=bl[0][0],M=bl[0][1],Y=bl[0][2];const ids=['top5','groups','behavior','control'];const defs=bl.slice(0,4).flatMap((b,i)=>{const c=i?b:b.slice(3);const half=c.length>>1;return c.slice(half).map((pc,j)=>({chart:ids[i],pc,cnt:c[j],series:pc.replace(/^% */,'')}));});const rows=trend.filter(r=>YEAR.test(r[Y])&&(!p.mission||r[M]===p.mission)&&(!p.unit||r[U]===p.unit));const out=d3.groups(rows,r=>r[Y]).flatMap(g=>defs.map(d=>({chart:d.chart,year:g[0],series:d.series,value:Math.round(d3.sum(g[1],r=>num(r[d.pc])||0)*100)/100,count:d3.sum(g[1],r=>num(r[d.cnt])||0)})));return lastYears(out,p.span);}
+function selUnits(all){const p=S.p;return new Set(S.D.units.map((u,i)=>i).filter(i=>all||((!p.mission||S.D.units[i][1]===p.mission)&&(!p.unit||S.D.units[i][0]===p.unit))));}
+function colMap(sel){const m=new Map();S.D.cells.forEach(([u,c,cat,n])=>{if(!sel.has(u))return;const col=S.D.cols[c];if(!m.has(col))m.set(col,new Map());const cm=m.get(col);cm.set(cat,(cm.get(cat)||0)+n);});return m;}
+function catsOf(cm,col){return[...(cm.get(col)||new Map())];}
+function testsOf(cm){return T.flatMap(t=>{const cs=catsOf(cm,t.col);const total=d3.sum(cs,d=>d[1]);return cs.map(([cat,n])=>({group:t.g,test:t.label,column:t.col,category:cat,n,total,pct:pct(n,total),normal:isNormal(cat)})).sort((a,b)=>b.normal-a.normal||b.n-a.n);});}
+function hazOf(cm){return Object.entries(HZ).flatMap(([g,cols])=>cols.map(col=>{const cs=catsOf(cm,col);const total=d3.sum(cs,d=>d[1]),yes=d3.sum(cs.filter(d=>exposed(d[0])),d=>d[1]);return{group:g,hazard:HZL[col]||col,yes,total,pct:pct(yes,total)};}).filter(d=>d.total));}
+function abnOf(tests){return d3.groups(tests,t=>t.test).map(g=>{const ab=d3.sum(g[1].filter(t=>!t.normal),t=>t.n),total=g[1][0].total;return{test:g[0],ab,total,pct:pct(ab,total)};}).sort((a,b)=>b.pct-a.pct);}
+function ddOf(sel,cond){const D=S.D,ci=D.cols.indexOf(cond),cm=colMap(sel);const cats=catsOf(cm,cond);const tested=d3.sum(cats,d=>d[1]),ab=d3.sum(cats.filter(d=>!isNormal(d[0])),d=>d[1]);const dims=new Map();D.dd.forEach(([u,c,cat,dc,dv,n])=>{if(c!==ci||!sel.has(u))return;const d=D.cols[dc];if(!dims.has(d))dims.set(d,new Map());const m=dims.get(d);m.set(dv,(m.get(dv)||0)+n);});const mission=[];D.cells.forEach(([u,c,cat,n])=>{if(c!==ci||!sel.has(u)||isNormal(cat))return;mission.push({m:D.units[u][1],cat,n});});return{tested,ab,dims,mission};}
+function storyOf(series){return d3.groups(series,r=>r.chart).map(g=>{const rows=g[1];const ys=[...new Set(rows.map(r=>r.year))].sort();const first=ys[0],year=ys[ys.length-1];const at=y=>rows.filter(r=>r.year===y).sort((a,b)=>b.value-a.value);const now=at(year),then=at(first);const top=now[0],low=now[now.length-1];const was=rows.find(r=>r.year===first&&r.series===top.series);const change=was?r1(top.value-was.value):0;const gap=r1(top.value-GOAL);return{chart:g[0],year,first,years:ys.length,top:top.series,topValue:r1(top.value),topChange:change,topMove:Math.abs(change),firstTop:then[0].series,firstTopValue:r1(then[0].value),low:low.series,lowValue:r1(low.value),gap,gapSize:Math.abs(gap),passYears:rows.filter(r=>r.value>=GOAL).length};});}
+
+/* ---------- ชิ้นส่วนการแสดงผล ---------- */
+const card=(label,value,note,tone)=>{const c=h('div','sh-kpi');c.append(h('div','sh-kpi-l',label),h('div','sh-kpi-v',value));if(note)c.append(h('div','sh-kpi-n'+(tone?' '+tone:''),note));return c;};
+const legend=(names,color)=>{const lg=h('div','sh-legend');names.forEach(s=>{const it=h('span','sh-lg'),sw=h('i','sh-sw');sw.style.background=color(s);it.append(sw,h('span','',s));lg.append(it);});return lg;};
+const bar=(label,w,val,color)=>{const row=h('div','sh-row'),tr=h('div','sh-track'),s=h('i');s.style.width=Math.max(0,w)+'%';s.style.background=color;tr.append(s);row.append(h('span','',label),tr,h('span','sh-row-v',val));return row;};
+const stack=(cats,semantic)=>{const tot=d3.sum(cats,c=>c.n)||1;const ab=cats.filter(c=>!c.normal).length;let j=0;const w=h('div'),b=h('div','sh-bar'),ul=h('div','sh-cats');cats.forEach((c,i)=>{const color=!semantic?C[i%C.length]:c.normal?'var(--ok)':mix(j++,ab);const s=h('i');s.style.flex=c.n+' 1 0';s.style.background=color;b.append(s);const row=h('div','sh-cat'),sw=h('i','sh-sw');sw.style.background=color;row.append(sw,h('span','sh-cat-l',c.label),h('b','',fmt(c.n/tot*100)+'%'),h('span','sh-muted',c.n+' คน'));ul.append(row);});w.append(b,ul);return w;};
+const empty=(el,t)=>el.replaceChildren(h('p','sh-muted',t||'ยังไม่มีข้อมูลตามตัวกรองนี้'));
+
+function line(el,rows,o){o=o||{};el.replaceChildren();const years=[...new Set(rows.map(r=>r.year))].sort(),names=[...new Set(rows.map(r=>r.series))];if(!years.length){empty(el,'ยังไม่มีข้อมูล');return;}
+  const base=s=>(o.color&&o.color(s))||C[names.indexOf(s)%C.length];const foc=o.focus&&o.focus.length?o.focus:null;const on=s=>!foc||foc.includes(s);const color=s=>on(s)?base(s):'var(--chart-muted)';const anim=o.animate&&!reduceMotion();
+  if(names.length>1)el.append(legend(names,color));const box=h('div','sh-plot');el.append(box);
+  const W=Math.max(el.clientWidth,280),H=250,m={t:18,r:46,b:24,l:34};const vals=rows.map(r=>r.value).concat(o.ref?[o.ref.value]:[]);
+  const y=d3.scaleLinear().domain(o.zoom?[Math.floor(d3.min(vals)-3),Math.ceil(d3.max(vals)+1)]:[0,d3.max(vals)*1.12||1]).range([H-m.b,m.t]);
+  const x=d3.scalePoint().domain(years).range([m.l,W-m.r]).padding(0.4);
+  const svg=d3.select(box).append('svg').attr('viewBox','0 0 '+W+' '+H).attr('width','100%').attr('role','img').attr('aria-label',o.label||'กราฟแนวโน้มรายปี');
+  y.ticks(4).forEach(t=>{svg.append('line').attr('x1',m.l).attr('x2',W-m.r).attr('y1',y(t)).attr('y2',y(t)).style('stroke','var(--grid)');svg.append('text').attr('x',m.l-6).attr('y',y(t)+4).attr('text-anchor','end').text(t);});
+  const step=Math.ceil(years.length/Math.max(1,Math.floor((W-m.l-m.r)/44)));years.forEach((yr,i)=>{if((years.length-1-i)%step===0)svg.append('text').attr('x',x(yr)).attr('y',H-6).attr('text-anchor','middle').text(yr);});
+  if(o.ref){svg.append('line').attr('x1',m.l).attr('x2',W-m.r).attr('y1',y(o.ref.value)).attr('y2',y(o.ref.value)).style('stroke','var(--muted)').style('stroke-dasharray','5 4');svg.append('text').attr('x',m.l+4).attr('y',y(o.ref.value)-5).text(o.ref.label);}
+  const ln=d3.line().x(d=>x(d.year)).y(d=>y(d.value));
+  names.slice().sort((a,b)=>on(a)-on(b)).forEach(s=>{const pts=rows.filter(r=>r.series===s).sort((a,b)=>a.year<b.year?-1:1);const p=svg.append('path').attr('d',ln(pts)).style('fill','none').style('stroke',color(s)).style('stroke-width',foc?(on(s)?3:1.5):2.2).style('stroke-linejoin','round');
+    if(anim&&on(s)){const L=p.node().getTotalLength();p.attr('stroke-dasharray',L+' '+L).attr('stroke-dashoffset',L).transition().duration(900).ease(d3.easeCubicOut).attr('stroke-dashoffset',0);}
+    pts.forEach((d,i)=>{const c=svg.append('circle').attr('cx',x(d.year)).attr('cy',y(d.value)).attr('r',foc&&on(s)?4:3.2).style('fill',color(s));const t=(o.all||(foc&&on(s)))?svg.append('text').attr('class','sh-val').attr('x',x(d.year)).attr('y',y(d.value)-10).attr('text-anchor','middle').text(fmt(d.value)):null;if(anim&&on(s)){const dl=900*i/Math.max(1,pts.length-1);c.style('opacity',0).transition().delay(dl).duration(200).style('opacity',1);if(t)t.style('opacity',0).transition().delay(dl).duration(200).style('opacity',1);}});});
+  if(!o.all&&!foc){const last=years[years.length-1];const labs=names.map(s=>{const r=rows.find(q=>q.series===s&&q.year===last);return r&&{v:r.value,y:y(r.value)};}).filter(Boolean).sort((a,b)=>a.y-b.y);labs.forEach((l,i)=>{if(i&&l.y-labs[i-1].y<12)l.y=labs[i-1].y+12;svg.append('text').attr('class','sh-val').attr('x',x(last)+8).attr('y',l.y+4).text(fmt(l.v));});}
+  const tip=h('div','sh-tip');tip.hidden=true;box.append(tip);const guide=svg.append('line').attr('y1',m.t).attr('y2',H-m.b).style('stroke','var(--muted)').style('opacity',0);
+  svg.append('rect').attr('width',W).attr('height',H).style('fill','transparent').on('pointermove pointerdown',ev=>{const px=d3.pointer(ev)[0];const yr=d3.least(years,d=>Math.abs(x(d)-px));guide.attr('x1',x(yr)).attr('x2',x(yr)).style('opacity',1);tip.replaceChildren(h('b','','ปี '+yr));rows.filter(r=>r.year===yr).sort((a,b)=>b.value-a.value).forEach(r=>{const row=h('div','sh-tip-r'),sw=h('i','sh-sw');sw.style.background=base(r.series);row.append(sw,h('span','',r.series),h('b','',fmt(r.value)+'%'+(r.count!=null?' ('+r.count+' คน)':'')));tip.append(row);});tip.hidden=false;const left=x(yr)*box.clientWidth/W;const tw=tip.offsetWidth;tip.style.left=Math.max(0,left+12+tw>box.clientWidth?left-12-tw:left+12)+'px';tip.style.top='6px';}).on('pointerleave',()=>{tip.hidden=true;guide.style('opacity',0);});
+}
+const groupColor=s=>/ปกติ/.test(s)?'var(--ok)':/เสี่ยง/.test(s)?'var(--warn)':/ป่วย/.test(s)?'var(--bad)':null;
+const OPTS={coverage:{zoom:true,all:true,ref:{value:GOAL,label:'เป้าหมาย '+GOAL+'%'},label:'ร้อยละความครอบคลุมการตรวจสุขภาพรายปี'},groups:{color:groupColor,label:'ร้อยละกลุ่มภาวะสุขภาพรายปี'},top5:{label:'ร้อยละภาวะสุขภาพเสี่ยง 5 อันดับรายปี'},control:{label:'ร้อยละการควบคุมปัญหาสุขภาพรายปี'},behavior:{label:'ร้อยละพฤติกรรมสุขภาพรายปี'}};
+
+/* ---------- เติมตัวเลขในข้อความ ---------- */
+function fill(F){$$('[data-f]').forEach(el=>{const v=el.dataset.f.split('.').reduce((o,k)=>o==null?o:o[k],F);if(v===undefined&&!(el.dataset.f.split('.')[0] in F))return;el.textContent=v==null?'—':typeof v==='number'?fmt(v):v;});$$('[data-if]').forEach(el=>{const v=el.dataset.if.split('.').reduce((o,k)=>o==null?o:o[k],F);el.hidden=v==null||(el.dataset.sign==='pos'?!(v>=0):!(v<0));});}
+
+/* ---------- ส่วนหัว ---------- */
+function renderHeader(series){const k=ovKpi(series);const c=k.find(r=>r.chart==='coverage');fill({kpi:{year:c?c.year:null,cov:c?c.value:null}});$('.sh-pass').hidden=!(c&&c.value>=GOAL);$('.sh-fail').hidden=!(c&&c.value<GOAL);return k;}
+
+/* ---------- แท็บต่างๆ ---------- */
+function renderOverview(series,kpis){$('#ov-kpis').replaceChildren(...kpis.map(r=>{const good=/เสี่ยง|ป่วย/.test(r.key)?r.change<0:r.change>0;return card(r.chart==='coverage'?'ความครอบคลุมการตรวจสุขภาพ':r.key,fmt(r.value)+'%',r.change==null?'ปี '+r.year:'ปี '+r.year+' · '+(r.change>0?'+':'')+fmt(r.change)+' จุด จากปี '+r.prevYear,r.change?(good?'ok':'bad'):'');}));
+  $$('#overview [data-chart]').forEach(el=>{const ch=el.dataset.chart.split('.')[1];line(el,series.filter(r=>r.chart===ch),OPTS[ch]);});}
+function renderTrend(){const rows=trSeries();$$('#trend [data-chart]').forEach(el=>{const ch=el.dataset.chart.split('.')[1];line(el,rows.filter(r=>r.chart===ch),{color:ch==='groups'?groupColor:null,label:OPTS[ch].label});});}
+function renderTests(scope,cm){const rows=testsOf(cm);$$(scope+' [data-tests]').forEach(el=>{el.replaceChildren(...T.filter(t=>t.g===el.dataset.tests).map(t=>{const cs=rows.filter(r=>r.column===t.col);const c=h('div','sh-card');c.append(h('h3','sh-h3',t.label));if(!cs.length){c.append(h('p','sh-muted','ยังไม่มีข้อมูลตามตัวกรองนี้'));return c;}const ok=d3.sum(cs.filter(x=>x.normal),x=>x.n),tot=cs[0].total;const top=h('div','sh-big');top.append(h('b','',fmt(ok/tot*100)+'%'),h('span','sh-muted',' ปกติ · มีผลตรวจ '+tot+' คน'));c.append(top,stack(cs.map(x=>({label:x.category,n:x.n,normal:x.normal})),true));return c;}));});}
+function renderResults(){const cm=colMap(selUnits());const total=d3.sum(catsOf(cm,COUNT),d=>d[1]);const sex=catsOf(cm,'เพศ');$('#cur-kpis').replaceChildren(card('ผู้เข้ารับการตรวจ',total.toLocaleString('en-US')+' คน','ตามตัวกรองที่เลือก'),...sex.map(([k,n])=>card('เพศ'+k,n.toLocaleString('en-US')+' คน',fmt(pct(n,total))+'% ของทั้งหมด')));renderTests('#results',cm);}
+function renderRisk(){renderTests('#risk',colMap(selUnits()));}
+function renderHazards(){const rows=hazOf(colMap(selUnits()));$$('#hazards [data-haz]').forEach(el=>{const rs=rows.filter(r=>r.group===el.dataset.haz).sort((a,b)=>b.pct-a.pct);const color=C[(+el.dataset.ci||0)%C.length];if(!rs.length)return empty(el);el.replaceChildren(...rs.map(r=>bar(r.hazard,r.pct,fmt(r.pct)+'% · '+r.yes+'/'+r.total+' คน',color)));});}
+function renderAnalysis(){const sel=selUnits(),cond=S.p.cond;const d=ddOf(sel,cond);const cards=[card('พบผลผิดปกติ',d.ab+' คน',fmt(pct(d.ab,d.tested))+'% ของผู้ที่มีผลตรวจ '+d.tested+' คน')];['เพศ',AGECOL].forEach(k=>{[...(d.dims.get(k)||new Map())].sort((a,b)=>b[1]-a[1]).forEach(([v,n])=>cards.push(card(k==='เพศ'?'เพศ'+v:v,n+' คน',fmt(pct(n,d.ab))+'% ของผู้ที่พบ')));});$('#dd-kpis').replaceChildren(...cards);
+  const mEl=$('#dd-mission');if(!d.mission.length)empty(mEl,'ไม่พบผู้ที่มีผลผิดปกติตามตัวกรองนี้');else{const cats=[...d3.rollup(d.mission,v=>d3.sum(v,x=>x.n),x=>x.cat)].sort((a,b)=>b[1]-a[1]).map(x=>x[0]);const col=c=>mix(cats.indexOf(c),cats.length);const gs=d3.rollups(d.mission,v=>v,x=>x.m).map(g=>({m:g[0],v:g[1],n:d3.sum(g[1],x=>x.n)})).sort((a,b)=>b.n-a.n);const max=gs[0].n,all=d3.sum(gs,g=>g.n);mEl.replaceChildren(legend(cats,col),...gs.map(g=>{const row=h('div','sh-row'),tr=h('div','sh-track');cats.forEach(c=>{const n=d3.sum(g.v.filter(x=>x.cat===c),x=>x.n);if(!n)return;const s=h('i');s.style.width=n/max*100+'%';s.style.background=col(c);tr.append(s);});row.append(h('span','',g.m),tr,h('span','sh-row-v',g.n+' คน · '+fmt(g.n/all*100)+'%'));return row;}));}
+  const fEl=$('#dd-factors');const fs=FACT.map(f=>[f,[...(d.dims.get(f)||new Map())].sort((a,b)=>b[1]-a[1])]).filter(x=>x[1].length);if(!fs.length)empty(fEl);else fEl.replaceChildren(...fs.map(([f,v])=>{const c=h('div','sh-card');c.append(h('h3','sh-h3',f),stack(v.map(([label,n])=>({label,n})),false));return c;}));
+  const hEl=$('#dd-history');const cm=colMap(sel);const hs=S.D.history.map(col=>[col,catsOf(cm,col).sort((a,b)=>b[1]-a[1])]).filter(x=>x[1].length);if(!hs.length)empty(hEl);else hEl.replaceChildren(...hs.map(([col,v])=>{const c=h('div','sh-card');c.append(h('h3','sh-h3',col));const max=d3.max(v,x=>x[1]);v.forEach(([k,n])=>c.append(bar(k,n/max*100,n+' คน',C[0])));return c;}));}
+
+/* ---------- Scrollyteller ---------- */
+let F=null;
+function storyFacts(series){const all=selUnits(true),cm=colMap(all);const st={};storyOf(series).forEach(r=>{st[r.chart]=r;});const n=d3.sum(catsOf(cm,COUNT),d=>d[1]);const sx=new Map(catsOf(cm,'เพศ'));const ag=catsOf(cm,AGECOL);const aged=d3.sum(ag,d=>d[1]);const young=d3.sum(ag.filter(d=>/น้อยกว่า/.test(d[0])),d=>d[1]);
+  const share=(col,test)=>{const cs=catsOf(cm,col);return pct(d3.sum(cs.filter(d=>test(d[0])),d=>d[1]),d3.sum(cs,d=>d[1]));};
+  const tests=testsOf(cm);const best=FOCUS.map(f=>({f,d:ddOf(all,f.col)})).sort((a,b)=>b.d.ab-a.d.ab)[0];const top=m=>{const e=[...(m||new Map())].sort((a,b)=>b[1]-a[1])[0];return e?{k:e[0],n:e[1]}:{k:'—',n:0};};
+  let focus=null,mission=[];if(best&&best.d.ab){const d=best.d,s=top(d.dims.get('เพศ')),a=top(d.dims.get(AGECOL));mission=d3.rollups(d.mission,v=>d3.sum(v,x=>x.n),x=>x.m).map(([m,k])=>({mission:m,n:k,pct:pct(k,d.ab)})).sort((p,q)=>q.n-p.n);const mt=mission[0]||{mission:'—',n:0,pct:0};focus={cond:best.f.name,col:best.f.col,n:d.ab,tested:d.tested,pct:pct(d.ab,d.tested),sex:s.k,sexPct:pct(s.n,d.ab),age:a.k,agePct:pct(a.n,d.ab),mission:mt.mission,missionN:mt.n,missionPct:mt.pct};}
+  return{st,who:{n,male:sx.get('ชาย')||0,female:sx.get('หญิง')||0,malePct:pct(sx.get('ชาย')||0,n),femalePct:pct(sx.get('หญิง')||0,n),young,youngPct:pct(young,aged),old:aged-young,oldPct:pct(aged-young,aged)},
+    body:{bmiAb:share('แปล BMI',x=>!isNormal(x)),obese:share('แปล BMI',x=>/อ้วน/.test(x)),waist:share('ประเมินรอบเอว',x=>!isNormal(x)),bp:share('สรุปความดัน',x=>!isNormal(x))},
+    tests:abnOf(tests.filter(t=>t.group!=='risk')),risk:abnOf(tests.filter(t=>t.group==='risk')),allTests:tests,haz:hazOf(cm).sort((a,b)=>b.pct-a.pct),focus,mission,series};}
+function renderStory(series){F=storyFacts(series);fill(F);drawStage(true);}
+function drawStage(){const el=$('#stage');if(!F)return;const step=S.step;
+  if(OPTS[step]){const sr=F.st[step];const focus=!sr||step==='coverage'?null:[...new Set(step==='top5'?[sr.top,sr.firstTop]:[sr.top,sr.low])];const animate=S.anim!==step;S.anim=step;line(el,F.series.filter(r=>r.chart===step),Object.assign({},OPTS[step],{focus,animate}));return;}
+  S.anim=step;
+  if(step==='who'){const r=F.who,g=h('div','sh-kpis');g.append(card('ผู้เข้ารับการตรวจ',r.n.toLocaleString('en-US')+' คน','ทั้งโรงพยาบาล'),card('เพศหญิง',r.female+' คน',fmt(r.femalePct)+'%'),card('เพศชาย',r.male+' คน',fmt(r.malePct)+'%'),card('อายุน้อยกว่า '+S.D.age+' ปี',r.young+' คน',fmt(r.youngPct)+'%'),card('อายุ '+S.D.age+' ปีขึ้นไป',r.old+' คน',fmt(r.oldPct)+'%'));el.replaceChildren(g);return;}
+  if(step==='body'){el.replaceChildren(...['แปล BMI','ประเมินรอบเอว','สรุปความดัน'].map(col=>{const cs=F.allTests.filter(r=>r.column===col);const w=h('div','st-sub');if(!cs.length)return w;w.append(h('h4','sh-h3',cs[0].test),stack(cs.map(x=>({label:x.category,n:x.n,normal:x.normal})),true));return w;}));return;}
+  if(step==='focus'){const r=F.focus;if(!r)return empty(el,'ยังไม่มีข้อมูล');const g=h('div','sh-kpis');g.append(card(r.cond,r.n+' คน',fmt(r.pct)+'% ของผู้มีผลตรวจ '+r.tested+' คน','bad'),card('พบมากใน เพศ'+r.sex,fmt(r.sexPct)+'%','ของผู้ที่พบ'),card('พบมากใน '+r.age,fmt(r.agePct)+'%','ของผู้ที่พบ'));el.replaceChildren(g);return;}
+  if(step==='mission'){if(!F.mission.length)return empty(el,'ยังไม่มีข้อมูล');const max=F.mission[0].n;el.replaceChildren(...F.mission.map(r=>bar(r.mission,r.n/max*100,r.n+' คน · '+fmt(r.pct)+'%','var(--bad)')));return;}
+  if(step==='haz'){el.replaceChildren(...F.haz.slice(0,10).map(r=>bar(r.hazard,r.pct,fmt(r.pct)+'%',C[0])));return;}
+  const rows=step==='risk'?F.risk:F.tests;if(!rows.length)return empty(el,'ยังไม่มีข้อมูล');el.replaceChildren(...rows.map(r=>bar(r.test,r.pct,fmt(r.pct)+'% · '+r.ab+'/'+r.total+' คน','var(--warn)')));}
+const steps=$$('.st-step');
+function setStep(sec){const id=sec.dataset.step;if(S.step===id)return;S.step=id;const ch=+sec.dataset.ch;steps.forEach(s=>s.classList.toggle('on',s===sec));$$('.st-cap').forEach(c=>{c.hidden=c.dataset.step!==id;});$$('.st-prog span').forEach(p=>{const n=+p.dataset.ch;p.classList.toggle('on',n===ch);p.classList.toggle('done',n<ch);});drawStage();}
+if(window.IntersectionObserver){const io=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting)setStep(e.target);});},{rootMargin:'-45% 0px -45% 0px'});steps.forEach(s=>io.observe(s));}
+
+/* ---------- ตัวกรอง ---------- */
+function orgPairs(){const out=new Map();S.D.units.forEach(([u,m])=>out.set(u,m));const tr=S.D.trend;if(tr.length){const k=blocks(Object.keys(tr[0]))[0];tr.forEach(r=>{if(r[k[0]]&&!out.has(r[k[0]]))out.set(r[k[0]],r[k[1]]);});}return out;}
+function renderFilters(){const p=S.p,pairs=orgPairs();const ms=[...new Set([...pairs.values()].filter(Boolean))].sort(th);const fm=$('#f-mission'),fu=$('#f-unit');fm.replaceChildren(new Option('ทุกกลุ่มภารกิจ',''),...ms.map(m=>new Option(m,m)));fm.value=p.mission;const us=[...pairs].filter(e=>!p.mission||e[1]===p.mission).map(e=>e[0]).sort(th);fu.replaceChildren(new Option('ทุกหน่วยงานย่อย',''),...us.map(u=>new Option(u,u)));fu.value=p.unit;$('#f-span').value=String(p.span);$('#f-cond').value=p.cond;
+  const id=S.tab;$('#filters').hidden=id==='story';$$('.f-org').forEach(e=>{e.hidden=id==='overview'||id==='story';});$$('.f-span').forEach(e=>{e.hidden=id!=='overview'&&id!=='trend';});}
+$('#f-mission').addEventListener('change',e=>{S.p.mission=e.target.value;S.p.unit='';render();});
+$('#f-unit').addEventListener('change',e=>{S.p.unit=e.target.value;render();});
+$('#f-span').addEventListener('change',e=>{S.p.span=Number(e.target.value);S.anim=null;render();});
+$('#f-cond').addEventListener('change',e=>{S.p.cond=e.target.value;render();});
+
+/* ---------- แท็บ ---------- */
+const PAGES=['story','overview','trend','results','analysis','risk','hazards'];
+function show(id,push){if(!PAGES.includes(id))id='story';S.tab=id;$$('.sh-page').forEach(p=>{p.hidden=p.id!==id;});$$('.sh-tab').forEach(t=>{const on=t.dataset.tab===id;t.classList.toggle('on',on);t.setAttribute('aria-selected',on?'true':'false');});if(push&&location.hash!=='#'+id)history.replaceState(null,'','#'+id);if(S.D)render();}
+$$('.sh-tab').forEach(t=>t.addEventListener('click',()=>{show(t.dataset.tab,true);window.scrollTo({top:0});}));
+window.addEventListener('hashchange',()=>show(location.hash.slice(1)));
+$$('[data-goto]').forEach(b=>b.addEventListener('click',()=>{S.p.mission='';S.p.unit='';if(b.dataset.goto==='analysis'&&F&&F.focus)S.p.cond=F.focus.col;show(b.dataset.goto,true);window.scrollTo({top:0});}));
+
+/* ---------- วาดหน้าที่เปิดอยู่ ---------- */
+function render(){if(!S.D)return;renderFilters();const series=ovSeries();const kpis=renderHeader(series);const t=S.tab;
+  if(t==='story')renderStory(series);else if(t==='overview')renderOverview(series,kpis);else if(t==='trend')renderTrend();else if(t==='results')renderResults();else if(t==='analysis')renderAnalysis();else if(t==='risk')renderRisk();else if(t==='hazards')renderHazards();}
+let rz=null,lastW=window.innerWidth;window.addEventListener('resize',()=>{if(window.innerWidth===lastW)return;lastW=window.innerWidth;clearTimeout(rz);rz=setTimeout(()=>{S.anim=S.step;render();},200);});
+
+/* ---------- ส่วนหัวตรึง + ธีม ---------- */
+const top=$('#top');const setHead=()=>document.documentElement.style.setProperty('--sh-head',top.offsetHeight+'px');if(window.ResizeObserver)new ResizeObserver(setHead).observe(top);setHead();
+const THEMES=['auto','light','dark'],TL={auto:'อัตโนมัติ',light:'สว่าง',dark:'มืด'};
+const themeBtn=$('#theme');const curTheme=()=>document.documentElement.dataset.theme||'auto';const paintTheme=()=>{themeBtn.textContent='ธีม: '+TL[curTheme()];};
+themeBtn.addEventListener('click',()=>{const n=THEMES[(THEMES.indexOf(curTheme())+1)%3];if(n==='auto')delete document.documentElement.dataset.theme;else document.documentElement.dataset.theme=n;try{localStorage.setItem('sh-theme',n==='auto'?'':n);}catch(e){}paintTheme();});paintTheme();
+$$('.js-goal').forEach(e=>{e.textContent=GOAL;});
+
+/* ---------- โหลดข้อมูล ---------- */
+function msg(t){const m=$('#msg');m.textContent=t;m.hidden=!t;}
+async function load(){show(location.hash.slice(1)||'story');
+  if(!API_URL||/^PASTE/.test(API_URL)){msg('ยังไม่ได้ใส่ลิงก์ Apps Script ในโค้ด (ตัวแปร API_URL ด้านบนของไฟล์)');return;}
+  try{const r=await fetch(API_URL+(API_URL.includes('?')?'&':'?')+'t='+Date.now());if(!r.ok)throw new Error('HTTP '+r.status);const d=await r.json();if(d.error)throw new Error(d.error);
+    S.D={...d,p1:grid(d.p1),trend:grid(d.trend)};$$('.js-age').forEach(e=>{e.textContent=d.age;});
+    $('#updated').textContent='ข้อมูล ณ '+new Date(d.updated).toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'});
+    msg('');render();
+  }catch(e){msg('โหลดข้อมูลไม่สำเร็จ: '+e.message+' — ลองรีเฟรชหน้าอีกครั้ง');}}
+load();
+})();
+</script>
+</body>
+</html>
