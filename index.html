@@ -114,6 +114,8 @@ body{font-size:14px;line-height:1.5}
 .sh-foot{color:var(--muted);font-size:12px;border-top:1px solid var(--line);padding-top:12px;display:flex;flex-wrap:wrap;gap:4px 16px;justify-content:space-between}
 .sh-msg{padding:40px 16px;text-align:center;color:var(--muted)}
 .sh-msg{position:fixed;inset:0;z-index:100;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px;transition:opacity .4s ease,visibility .4s}
+.sh-msg-top{position:absolute;top:0;left:0;right:0;max-width:1280px;margin:0 auto;padding:14px 20px;display:flex;justify-content:flex-end}
+@media (max-width:600px){.sh-msg-top{padding:14px 12px}}
 .sh-msg.out{opacity:0;visibility:hidden;pointer-events:none}
 .sh-msg[hidden]{display:none}
 .sh-load{display:flex;flex-direction:column;align-items:center;gap:18px;width:100%}
@@ -201,6 +203,7 @@ body{font-size:14px;line-height:1.5}
 </div>
 
 <div class="sh-msg" id="msg">
+<div class="sh-msg-top"><a class="sh-ws" href="https://praetinee.github.io/JanWorkspace/"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span>Workspace</span></a></div>
 <div class="sh-load" id="loader" role="status" aria-live="polite">
 <svg class="sh-ecg" viewBox="0 0 240 60" aria-hidden="true"><path class="ecg-base" pathLength="100" d="M0 32 H70 L78 32 L84 24 L90 32 H100 L106 32 L113 6 L121 54 L128 32 H142 L150 32 L158 22 L166 32 H240"/><path class="ecg-pulse" pathLength="100" d="M0 32 H70 L78 32 L84 24 L90 32 H100 L106 32 L113 6 L121 54 L128 32 H142 L150 32 L158 22 L166 32 H240"/></svg>
 <p>กำลังโหลดข้อมูล…</p>
