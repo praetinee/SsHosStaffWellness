@@ -11,7 +11,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script>
 /* ใส่ลิงก์ Web app ของ Apps Script (ลงท้ายด้วย /exec) ตรงนี้ */
-const API_URL = 'https://script.google.com/macros/s/AKfycby_xnctC54HAOzV0-tPBAR_9bxT3taZHLCuI_E4MYaqgoeYVtbBhhNGcYWjOd5h7wvI/exec';
+const API_URL = 'PASTE_YOUR_WEB_APP_URL_HERE';
 /* เป้าหมายความครอบคลุมการตรวจสุขภาพ (%) */
 const GOAL = 95;
 /* ธีม: จำค่าที่ผู้ใช้เลือกไว้ (auto / light / dark) */
@@ -56,6 +56,14 @@ body{font-size:14px;line-height:1.5}
 .sh-sub{margin:4px 0 0;color:var(--muted)}
 .sh-sub b{color:var(--fg);font-variant-numeric:tabular-nums}
 .sh-pass{color:var(--ok)}.sh-fail{color:var(--bad)}
+.sh-actions{display:flex;align-items:center;gap:8px;flex:none}
+.sh-ws{display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border:1px solid #d0d7de;border-radius:8px;background:#f6f8fa;color:#24292f;font-size:15px;font-weight:500;text-decoration:none;line-height:1.2;white-space:nowrap;transition:background .15s,border-color .15s}
+.sh-ws:hover{background:#eef1f4;border-color:#c3cbd3}
+.sh-ws svg{flex:none;color:#3d444d}
+:root[data-theme=dark] .sh-ws{background:#21262d;border-color:#363c44;color:#e6edf3}
+:root[data-theme=dark] .sh-ws svg{color:#c9d1d9}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]) .sh-ws{background:#21262d;border-color:#363c44;color:#e6edf3}:root:not([data-theme=light]) .sh-ws svg{color:#c9d1d9}}
+@media (max-width:600px){.sh-head{flex-wrap:wrap}.sh-head header{flex-basis:100%;order:2}.sh-actions{order:1;margin-left:auto}.sh-ws{font-size:14px;padding:6px 12px}}
 .sh-theme{appearance:none;border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:999px;padding:6px 12px;font-size:12.5px;cursor:pointer;white-space:nowrap}
 .sh-tabs{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
 .sh-tabs::-webkit-scrollbar{display:none}
@@ -155,7 +163,10 @@ body{font-size:14px;line-height:1.5}
 <h1 class="sh-title">รายงานสภาวะสุขภาพบุคลากร โรงพยาบาลสันทราย</h1>
 <p class="sh-sub">ปีงบประมาณ <b data-f="kpi.year">—</b> ตรวจสุขภาพครอบคลุม <b data-f="kpi.cov">—</b>% <span class="sh-pass" hidden>ผ่านเป้าหมาย</span><span class="sh-fail" hidden>ต่ำกว่าเป้าหมาย</span> (เป้าหมาย <b class="js-goal">—</b>%)</p>
 </header>
+<div class="sh-actions">
 <button type="button" class="sh-theme" id="theme" aria-label="เปลี่ยนธีม">ธีม: อัตโนมัติ</button>
+<a class="sh-ws" href="https://praetinee.github.io/JanWorkspace/"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span>Workspace</span></a>
+</div>
 </div>
 <nav class="sh-tabs" role="tablist">
 <button type="button" class="sh-tab" role="tab" data-tab="story">Scrollyteller</button>
